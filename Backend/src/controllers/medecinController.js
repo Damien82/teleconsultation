@@ -34,9 +34,21 @@ export const demarrerConsultation = async (req, res) => {
     const rdv = await RendezVous.findById(req.params.id);
     if (!rdv) return res.status(404).json({ message: "RDV non trouvé" });
 
+    // Changer le statut
     rdv.statut = "en cours";
+
+    // Créer roomId si inexistant
+    if (!rdv.roomId) {
+      rdv.roomId = `consult-${rdv._id}`;
+    }
+
     await rdv.save();
-    res.json(rdv);
+
+    res.json({
+      message: "Consultation démarrée",
+      roomId: rdv.roomId, // renvoyer le roomId au frontend
+      rdv,
+    });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

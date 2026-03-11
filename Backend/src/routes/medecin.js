@@ -12,4 +12,4 @@ router.put("/rdv/:id/valider", medecin.validerRDV);
 router.put("/rdv/:id/start", medecin.demarrerConsultation);
 router.get("/stats", medecin.getStatsMedecin);
 
-export default router; // ✅ export par défaut compatible import
+export default router; // export par défaut compatible import
