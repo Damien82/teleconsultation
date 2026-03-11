@@ -16,24 +16,33 @@ const io = new Server(server, {
   },
 });
 
-// Stockage des rôles et consultations
-const users = {};          // { socketId: { rdvId, userId, role } }
-const consultations = {};  // { rdvId: { medecin?: socketId, patient?: socketId } }
+// Stockage des utilisateurs et consultations
+const users = {};         // { socketId: { rdvId, userId, role } }
+const consultations = {}; // { rdvId: { medecin?: socketId, patient?: socketId } }
 
 io.on("connection", (socket) => {
   console.log("Socket connecté :", socket.id);
 
-  // Rejoindre une consultation (room = rdvId)
+  // Rejoindre une consultation
   socket.on("join-consultation", ({ rdvId, userId, role }) => {
     socket.join(rdvId);
     users[socket.id] = { rdvId, userId, role };
 
     if (!consultations[rdvId]) consultations[rdvId] = {};
-    if (role === "medecin") consultations[rdvId].medecin = socket.id;
+    if (role === "medecin") {
+      consultations[rdvId].medecin = socket.id;
+
+      // Si le patient est déjà connecté, notifier le médecin immédiatement
+      const patientId = consultations[rdvId].patient;
+      if (patientId) {
+        io.to(socket.id).emit("patient-connected", { patientSocketId: patientId });
+      }
+    }
+
     if (role === "patient") {
       consultations[rdvId].patient = socket.id;
 
-      // Notifier le médecin que le patient est connecté
+      // Notifier le médecin que le patient est là
       const medSocketId = consultations[rdvId].medecin;
       if (medSocketId) {
         io.to(medSocketId).emit("patient-connected", { patientSocketId: socket.id });
@@ -48,8 +57,8 @@ io.on("connection", (socket) => {
     socket.to(rdvId).emit("receive-message", message);
   });
 
-  // Signaling WebRTC : appel du médecin vers le patient
-  socket.on("call-user", ({ rdvId, signalData, targetSocketId }) => {
+  // WebRTC – Appel du médecin vers le patient
+  socket.on("call-user", ({ targetSocketId, signalData }) => {
     if (users[socket.id]?.role !== "medecin") {
       console.log("Appel non autorisé pour :", socket.id);
       return;
@@ -61,7 +70,7 @@ io.on("connection", (socket) => {
     });
   });
 
-  // Réponse du patient à l'appel
+  // WebRTC – Réponse du patient
   socket.on("answer-call", ({ toSocketId, signal }) => {
     io.to(toSocketId).emit("call-accepted", signal);
   });
@@ -72,8 +81,24 @@ io.on("connection", (socket) => {
     const role = users[socket.id]?.role;
 
     if (rdvId && consultations[rdvId]) {
-      if (role === "medecin") delete consultations[rdvId].medecin;
-      if (role === "patient") delete consultations[rdvId].patient;
+      if (role === "medecin") {
+        delete consultations[rdvId].medecin;
+        // Optionnel : prévenir le patient que le médecin s'est déconnecté
+        const patientId = consultations[rdvId].patient;
+        if (patientId) io.to(patientId).emit("medecin-disconnected");
+      }
+
+      if (role === "patient") {
+        delete consultations[rdvId].patient;
+        // Optionnel : prévenir le médecin que le patient s'est déconnecté
+        const medSocketId = consultations[rdvId].medecin;
+        if (medSocketId) io.to(medSocketId).emit("patient-disconnected");
+      }
+
+      // Si la consultation est vide, supprimer l'objet
+      if (!consultations[rdvId].medecin && !consultations[rdvId].patient) {
+        delete consultations[rdvId];
+      }
     }
 
     delete users[socket.id];
