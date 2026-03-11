@@ -9,6 +9,8 @@ interface Props {
   rdvId: string;
   role: "patient" | "medecin";
   onClose: () => void;
+  removeRDVFromList?: (rdvId: string) => void; 
+  removeRDVFromPatientList?: (rdvId: string) => void;
 }
 
 interface Message {
