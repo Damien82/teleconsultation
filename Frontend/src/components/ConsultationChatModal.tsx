@@ -9,8 +9,6 @@ interface Props {
   rdvId: string;
   role: "patient" | "medecin";
   onClose: () => void;
-  removeRDVFromList?: (rdvId: string) => void;
-  removeRDVFromPatientList?: (rdvId: string) => void;
 }
 
 interface Message {
@@ -40,31 +38,39 @@ export default function ConsultationModal({ rdvId, role, onClose }: Props) {
   useEffect(() => {
     let localStream: MediaStream;
 
-    navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-      .then((s) => {
-        localStream = s;
-        setStream(s);
-        if (userVideo.current) userVideo.current.srcObject = s;
+    const init = async () => {
+      try {
+        localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        setStream(localStream);
+        if (userVideo.current) userVideo.current.srcObject = localStream;
 
         socket.current = io("https://teleconsultation-m2ii.onrender.com", { withCredentials: true });
 
+        // Rejoindre la room
         socket.current.emit("join-consultation", { rdvId, userId: user?._id, role });
 
+        // Messages entrants
         socket.current.on("receive-message", (msg: Message) => setMessages(prev => [...prev, msg]));
 
-        socket.current.on("user-connected", (data: { socketId: string; role: "medecin" | "patient" }) => {
-          const { socketId, role: remoteRole } = data;
+        // WebRTC : un utilisateur s'est connecté
+        socket.current.on("user-connected", ({ socketId, role: remoteRole }: { socketId: string; role: "medecin" | "patient" }) => {
           if (!localStream) return;
           if ((role === "medecin" && remoteRole === "patient") || (role === "patient" && remoteRole === "medecin")) {
             startPeer(socketId, role === "medecin", localStream);
           }
         });
 
-        socket.current.on("webrtc-signal", ({ signal }) => {
+        // WebRTC : signal reçu
+        socket.current.on("webrtc-signal", ({ signal, from }: { signal: Peer.SignalData; from: string }) => {
           if (connectionRef.current) connectionRef.current.signal(signal);
         });
-      })
-      .catch(err => console.error("Erreur caméra/micro :", err));
+
+      } catch (err) {
+        console.error("Erreur caméra/micro :", err);
+      }
+    };
+
+    init();
 
     return () => {
       if (connectionRef.current) connectionRef.current.destroy();
@@ -83,7 +89,7 @@ export default function ConsultationModal({ rdvId, role, onClose }: Props) {
     if (!text.trim() || status === "termine") return;
     const msg: Message = { senderId: user?._id || "", senderRole: role, content: text, createdAt: new Date() };
     setMessages(prev => [...prev, msg]);
-    socket.current?.emit("send-message", { rdvId, message: msg });
+    socket.current?.emit("send-message", { roomId: `consult-${rdvId}`, message: msg });
     setText("");
   };
 
@@ -92,7 +98,7 @@ export default function ConsultationModal({ rdvId, role, onClose }: Props) {
     const peer = new Peer({ initiator, trickle: false, stream: localStream });
 
     peer.on("signal", (signalData) => {
-      socket.current?.emit("webrtc-signal", { roomId: `consult-${rdvId}`, signal: signalData });
+      socket.current?.emit("webrtc-signal", { roomId: `consult-${rdvId}`, signal: signalData, from: socket.current?.id, to: remoteSocketId });
     });
 
     peer.on("stream", (remoteStream) => {
