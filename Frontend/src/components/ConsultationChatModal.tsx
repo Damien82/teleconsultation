@@ -25,7 +25,7 @@ export default function ConsultationModal({ rdvId, role, onClose }: Props) {
   const [receivingCall, setReceivingCall] = useState(false);
   const [callerSignal, setCallerSignal] = useState<SignalData | null>(null);
   const [callerId, setCallerId] = useState<string>("");
-  const [patientSocketId, setPatientSocketId] = useState<string | null>(null); // ⚡ ajouté
+  const [patientSocketId, setPatientSocketId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState("");
   const [compteRendu, setCompteRendu] = useState("");
@@ -36,43 +36,43 @@ export default function ConsultationModal({ rdvId, role, onClose }: Props) {
   const partnerVideo = useRef<HTMLVideoElement>(null);
   const connectionRef = useRef<Peer.Instance | null>(null);
   const chatRef = useRef<HTMLDivElement>(null);
-
   const socket = useRef<any>(null);
 
-  // Init caméra et Socket
+  // INIT caméra + socket
   useEffect(() => {
-    // Demande accès caméra + micro
+    // Demande caméra + micro
     navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then((currentStream) => {
       setStream(currentStream);
       if (userVideo.current) userVideo.current.srcObject = currentStream;
     });
 
-    socket.current = io("https://teleconsultation-m2ii.onrender.com", {
-      withCredentials: true,
-    });
+    // Connexion socket
+    socket.current = io("https://teleconsultation-m2ii.onrender.com", { withCredentials: true });
 
-    // Rejoindre la salle
+    // Rejoindre la consultation
     socket.current.emit("join-consultation", { rdvId, userId: user?._id, role });
 
     // Réception des messages
-    socket.current.on("receive-message", (msg: Message) => {
-      setMessages((prev) => [...prev, msg]);
-    });
+    socket.current.on("receive-message", (msg: Message) => setMessages((prev) => [...prev, msg]));
 
-    // Réception d'un appel
+    // Réception d’un appel
     socket.current.on("receive-call", (data: { from: string; signal: SignalData }) => {
       setReceivingCall(true);
       setCallerSignal(data.signal);
       setCallerId(data.from);
-
-      // ⚡ Si c'est le médecin, stocker l'ID socket du patient
-      if (role === "medecin") setPatientSocketId(data.from);
     });
 
-    return () => socket.current.disconnect();
+    // Patient connecté → Médecin
+    socket.current.on("patient-connected", ({ patientSocketId }: { patientSocketId: string }) => {
+      setPatientSocketId(patientSocketId);
+    });
+
+    return () => {
+      socket.current.disconnect();
+    };
   }, [rdvId, role, user?._id]);
 
-  // Scroll auto chat
+  // Scroll automatique chat
   useEffect(() => {
     if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
   }, [messages]);
@@ -86,14 +86,14 @@ export default function ConsultationModal({ rdvId, role, onClose }: Props) {
     setText("");
   };
 
-  // Appel patient (médecin)
+  // Médecin → appeler patient
   const callPatient = () => {
     if (!stream || !patientSocketId) return;
 
     const peer = new Peer({ initiator: true, trickle: false, stream });
 
     peer.on("signal", (signalData: SignalData) => {
-      socket.current.emit("call-user", { rdvId, toSocketId: patientSocketId, signalData });
+      socket.current.emit("call-user", { rdvId, targetSocketId: patientSocketId, signalData });
     });
 
     peer.on("stream", (remoteStream: MediaStream) => {
@@ -107,7 +107,7 @@ export default function ConsultationModal({ rdvId, role, onClose }: Props) {
     connectionRef.current = peer;
   };
 
-  // Répondre à un appel (patient)
+  // Patient → répondre appel
   const answerCall = () => {
     if (!stream || !callerSignal) return;
 
@@ -144,6 +144,7 @@ export default function ConsultationModal({ rdvId, role, onClose }: Props) {
   return (
     <div className="fixed inset-0 bg-black/40 flex justify-center items-center z-50">
       <div className="bg-white w-[90%] h-[85%] rounded-xl flex shadow-lg overflow-hidden">
+
         {/* GAUCHE : Vidéo + Chat */}
         <div className="w-1/2 border-r flex flex-col">
           <div className="flex gap-2 p-2">
@@ -151,25 +152,22 @@ export default function ConsultationModal({ rdvId, role, onClose }: Props) {
             <video ref={partnerVideo} autoPlay playsInline className="w-1/2 h-48 bg-black" />
           </div>
 
+          {/* Bouton appeler patient */}
           {role === "medecin" && (
             <button
               onClick={callPatient}
               disabled={!stream || !patientSocketId}
               className={`m-2 px-4 py-2 rounded text-white ${
-                !stream || !patientSocketId
-                  ? "bg-gray-400 cursor-not-allowed"
-                  : "bg-blue-600 hover:bg-blue-700"
+                !stream || !patientSocketId ? "bg-gray-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700"
               }`}
             >
               Appeler le patient
             </button>
           )}
 
+          {/* Bouton répondre appel */}
           {receivingCall && (
-            <button
-              onClick={answerCall}
-              className="m-2 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
-            >
+            <button onClick={answerCall} className="m-2 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">
               Répondre à l'appel
             </button>
           )}
@@ -214,7 +212,6 @@ export default function ConsultationModal({ rdvId, role, onClose }: Props) {
               disabled={role !== "medecin" || status === "termine"}
             />
           </div>
-
           <div className="flex-1 p-4 flex flex-col">
             <h2 className="font-bold mb-2">Ordonnance</h2>
             <textarea
