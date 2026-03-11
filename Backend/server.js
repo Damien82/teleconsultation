@@ -12,7 +12,7 @@ const server = http.createServer(app);
 // Socket.IO pour chat consultation
 const io = new Server(server, {
   cors: {
-    origin: "http://localhost:5173",
+    origin: "https://teleconsultation-eosin.vercel.app",
     methods: ["GET", "POST"],
     credentials: true,
   },
@@ -41,4 +41,4 @@ io.on("connection", (socket) => {
 
 // Démarrage serveur
 const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => console.log(`Serveur démarré sur http://localhost:${PORT}`));
+server.listen(PORT, () => console.log(`Serveur démarré sur https://teleconsultation-m2ii.onrender.com:${PORT}`));

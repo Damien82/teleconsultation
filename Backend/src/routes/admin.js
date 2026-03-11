@@ -14,7 +14,7 @@ const router = express.Router();
 
 router.get("/doctors", getDoctors);
 
-// 🔐 ADMIN ONLY
+// ADMIN ONLY
 router.use(protect, role("admin"));
 
 // PATIENTS

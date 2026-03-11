@@ -1,4 +1,4 @@
-const API_URL = "http://localhost:5000/api";
+const API_URL = "https://teleconsultation-m2ii.onrender.com/api";
 
 const getHeaders = () => {
   const user = JSON.parse(localStorage.getItem("user") || "{}");
@@ -210,7 +210,7 @@ export const apiGetStatsMedecin = async (token: string) => {
 
 
 export const apiDemarrerConsultation = async (rdvId: string) => {
-  const res = await fetch(`http://localhost:5000/api/medecin/rdv/${rdvId}/start`, {
+  const res = await fetch(`https://teleconsultation-m2ii.onrender.com/api/medecin/rdv/${rdvId}/start`, {
     method: "PUT",
     headers: { "Authorization": "Bearer " + localStorage.getItem("token") },
   });
@@ -253,7 +253,7 @@ export const apiGetHistoriqueConsultations = async (token: string) => {
 };
 // src/services/api.ts
 export const apiGetHistoriqueConsultationsPatient = async (token: string) => {
-  const res = await fetch("http://localhost:5000/api/consultations/historique/patient", {
+  const res = await fetch("https://teleconsultation-m2ii.onrender.com/api/consultations/historique/patient", {
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
