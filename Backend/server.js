@@ -3,7 +3,7 @@ import app from "./app.js";
 import http from "http";
 import { Server } from "socket.io";
 import dotenv from "dotenv";
-import RDV from "./models/RDV.js"; // modèle RDV pour sauvegarder roomId
+import RDV from "./src/models/RendezVous.js"; // modèle RDV pour sauvegarder roomId
 
 dotenv.config();
 
