@@ -25,6 +25,7 @@ export default function ConsultationModal({ rdvId, role, onClose }: Props) {
   const [receivingCall, setReceivingCall] = useState(false);
   const [callerSignal, setCallerSignal] = useState<SignalData | null>(null);
   const [callerId, setCallerId] = useState<string>("");
+  const [patientSocketId, setPatientSocketId] = useState<string | null>(null); // ⚡ ajouté
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState("");
   const [compteRendu, setCompteRendu] = useState("");
@@ -40,6 +41,7 @@ export default function ConsultationModal({ rdvId, role, onClose }: Props) {
 
   // Init caméra et Socket
   useEffect(() => {
+    // Demande accès caméra + micro
     navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then((currentStream) => {
       setStream(currentStream);
       if (userVideo.current) userVideo.current.srcObject = currentStream;
@@ -49,22 +51,28 @@ export default function ConsultationModal({ rdvId, role, onClose }: Props) {
       withCredentials: true,
     });
 
+    // Rejoindre la salle
     socket.current.emit("join-consultation", { rdvId, userId: user?._id, role });
 
+    // Réception des messages
     socket.current.on("receive-message", (msg: Message) => {
       setMessages((prev) => [...prev, msg]);
     });
 
+    // Réception d'un appel
     socket.current.on("receive-call", (data: { from: string; signal: SignalData }) => {
       setReceivingCall(true);
       setCallerSignal(data.signal);
       setCallerId(data.from);
+
+      // ⚡ Si c'est le médecin, stocker l'ID socket du patient
+      if (role === "medecin") setPatientSocketId(data.from);
     });
 
     return () => socket.current.disconnect();
   }, [rdvId, role, user?._id]);
 
-  // Scroll auto
+  // Scroll auto chat
   useEffect(() => {
     if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
   }, [messages]);
@@ -80,11 +88,12 @@ export default function ConsultationModal({ rdvId, role, onClose }: Props) {
 
   // Appel patient (médecin)
   const callPatient = () => {
-    if (!stream) return;
+    if (!stream || !patientSocketId) return;
+
     const peer = new Peer({ initiator: true, trickle: false, stream });
 
     peer.on("signal", (signalData: SignalData) => {
-      socket.current.emit("call-user", { rdvId, signalData });
+      socket.current.emit("call-user", { rdvId, toSocketId: patientSocketId, signalData });
     });
 
     peer.on("stream", (remoteStream: MediaStream) => {
@@ -135,7 +144,6 @@ export default function ConsultationModal({ rdvId, role, onClose }: Props) {
   return (
     <div className="fixed inset-0 bg-black/40 flex justify-center items-center z-50">
       <div className="bg-white w-[90%] h-[85%] rounded-xl flex shadow-lg overflow-hidden">
-
         {/* GAUCHE : Vidéo + Chat */}
         <div className="w-1/2 border-r flex flex-col">
           <div className="flex gap-2 p-2">
@@ -144,13 +152,24 @@ export default function ConsultationModal({ rdvId, role, onClose }: Props) {
           </div>
 
           {role === "medecin" && (
-            <button onClick={callPatient} className="m-2 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+            <button
+              onClick={callPatient}
+              disabled={!stream || !patientSocketId}
+              className={`m-2 px-4 py-2 rounded text-white ${
+                !stream || !patientSocketId
+                  ? "bg-gray-400 cursor-not-allowed"
+                  : "bg-blue-600 hover:bg-blue-700"
+              }`}
+            >
               Appeler le patient
             </button>
           )}
 
           {receivingCall && (
-            <button onClick={answerCall} className="m-2 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">
+            <button
+              onClick={answerCall}
+              className="m-2 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+            >
               Répondre à l'appel
             </button>
           )}
@@ -217,7 +236,6 @@ export default function ConsultationModal({ rdvId, role, onClose }: Props) {
             </button>
           )}
         </div>
-
       </div>
 
       <button onClick={onClose} className="absolute top-5 right-5 text-white text-2xl font-bold">✕</button>
