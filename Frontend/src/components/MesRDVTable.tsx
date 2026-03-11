@@ -17,7 +17,7 @@ export default function MesRDVTable({ rdvs, searchRDV, setSearchRDV, userToken, 
 
   const handleAnnuler = async (id: string) => {
     if (confirm("Voulez-vous vraiment annuler ce RDV ?")) {
-      await fetch(`http://localhost:5000/api/patient/rdvs/${id}`, {
+      await fetch(`https://teleconsultation-m2ii.onrender.com/api/patient/rdvs/${id}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${userToken}` },
       });

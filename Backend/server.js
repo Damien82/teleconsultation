@@ -1,15 +1,13 @@
 // server.js
-import app from "./app.js"; // app a déjà express.json() dedans
+import app from "./app.js";
 import http from "http";
 import { Server } from "socket.io";
 import dotenv from "dotenv";
 
 dotenv.config();
 
-// Création serveur HTTP
 const server = http.createServer(app);
 
-// Socket.IO pour chat consultation
 const io = new Server(server, {
   cors: {
     origin: "https://teleconsultation-eosin.vercel.app",
@@ -18,27 +16,49 @@ const io = new Server(server, {
   },
 });
 
+// On peut stocker les rôles si besoin (optionnel)
+const users = {}; // { socketId: { role, userId } }
+
 io.on("connection", (socket) => {
   console.log("Socket connecté :", socket.id);
 
   // Rejoindre une consultation (room = rdvId)
-  socket.on("join-consultation", ({ rdvId }) => {
+  socket.on("join-consultation", ({ rdvId, userId, role }) => {
     socket.join(rdvId);
-    console.log(`Utilisateur ${socket.id} a rejoint la consultation ${rdvId}`);
+    // Stocker rôle et ID
+    users[socket.id] = { rdvId, userId, role };
+    console.log(`Utilisateur ${socket.id} a rejoint la consultation ${rdvId} (${role})`);
   });
 
-  // Envoi d'un message
+  // Chat
   socket.on("send-message", ({ rdvId, message }) => {
-    // Émettre aux autres participants de la room
     socket.to(rdvId).emit("receive-message", message);
+  });
+
+  // Signaling WebRTC
+  socket.on("call-user", ({ rdvId, signalData, targetSocketId }) => {
+    // Vérifier que l'utilisateur est médecin
+    if (users[socket.id]?.role !== "medecin") {
+      console.log("Appel non autorisé pour :", socket.id);
+      return;
+    }
+    // Envoyer signal à l'autre utilisateur
+    io.to(targetSocketId).emit("receive-call", {
+      from: socket.id,
+      signal: signalData,
+    });
+  });
+
+  socket.on("answer-call", ({ toSocketId, signal }) => {
+    io.to(toSocketId).emit("call-accepted", signal);
   });
 
   // Déconnexion
   socket.on("disconnect", () => {
+    delete users[socket.id];
     console.log("Socket déconnecté :", socket.id);
   });
 });
 
-// Démarrage serveur
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => console.log(`Serveur démarré sur https://teleconsultation-m2ii.onrender.com:${PORT}`));
