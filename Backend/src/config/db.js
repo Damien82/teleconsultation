@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 
-const MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/teleconsultation";
+const MONGO_URI = process.env.MONGO_URI || "mongodb+srv://Mbida:X8K5dOUnzSO6oZdm@iai-vote.ztzszu0.mongodb.net/?appName=iai-vote";
 
 export const connectDB = async () => {
   try {
