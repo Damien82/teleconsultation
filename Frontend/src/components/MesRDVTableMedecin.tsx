@@ -8,6 +8,7 @@ interface Props {
   setSearchRDV: (val: string) => void;
   setSelectedRDV: (rdv: any) => void;
   validerRDV: (rdvId: string) => void;
+  load: () => void;
   userToken: string;
 }
 
@@ -18,12 +19,13 @@ export default function MesRDVTableMedecin({
   setSelectedRDV,
   validerRDV,
   userToken,
+  load,
 }: Props) {
 
   // La fonction magique qui manquait au nouveau design
   const handleDemarrer = async (rdvId: string) => {
     try {
-      console.log("🚀 Démarrage de la consultation pour le RDV:", rdvId);
+      console.log("Démarrage de la consultation pour le RDV:", rdvId);
       const data = await apiDemarrerConsultation(rdvId, userToken);
       if (data.rdv) {
         setSelectedRDV(data.rdv); 
