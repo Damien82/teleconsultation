@@ -4,7 +4,6 @@ import Peer from "simple-peer";
 import { useAuth } from "../context/AuthContext";
 import { apiTerminerConsultation } from "../services/api";
 
-// --- TYPES ---
 interface Props {
   rdvId: string;
   role: "patient" | "medecin";
@@ -39,44 +38,75 @@ export default function ConsultationModal({
   const userVideo = useRef<HTMLVideoElement>(null);
   const remoteVideosRef = useRef<HTMLDivElement>(null);
   const chatRef = useRef<HTMLDivElement>(null);
+
   const socket = useRef<Socket | null>(null);
   const peersRef = useRef<{ [socketId: string]: Peer.Instance }>({});
 
-  // --- INIT CAMERA + SOCKET ---
+  // ===============================
+  // INIT CAMERA + SOCKET
+  // ===============================
+
   useEffect(() => {
     let localStream: MediaStream;
 
     const init = async () => {
       try {
-        localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        localStream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: true,
+        });
+
         setStream(localStream);
-        if (userVideo.current) userVideo.current.srcObject = localStream;
 
-        socket.current = io("https://teleconsultation-m2ii.onrender.com", { withCredentials: true });
+        if (userVideo.current) {
+          userVideo.current.srcObject = localStream;
+        }
 
-        // Rejoindre la room
-        socket.current.emit("join-consultation", { rdvId, userId: user?._id, role });
+        socket.current = io("https://teleconsultation-m2ii.onrender.com", {
+          withCredentials: true,
+        });
 
-        // Messages entrants
-        socket.current.on("receive-message", (msg: Message) => setMessages(prev => [...prev, msg]));
+        socket.current.emit("join-consultation", {
+          rdvId,
+          userId: user?._id,
+          role,
+        });
 
-        // WebRTC : un utilisateur s'est connecté
+        // CHAT
+        socket.current.on("receive-message", (msg: Message) => {
+          setMessages((prev) => [...prev, msg]);
+        });
+
+        // USER CONNECTED
         socket.current.on(
           "user-connected",
-          ({ socketId, role: remoteRole }: { socketId: string; role: "medecin" | "patient" }) => {
+          ({ socketId, role: remoteRole }: { socketId: string; role: "patient" | "medecin" }) => {
             if (!localStream) return;
-            if ((role === "medecin" && remoteRole === "patient") || (role === "patient" && remoteRole === "medecin")) {
-              createPeer(socketId, role === "medecin", localStream);
+
+            const initiator = role === "medecin";
+
+            if (
+              (role === "medecin" && remoteRole === "patient") ||
+              (role === "patient" && remoteRole === "medecin")
+            ) {
+              if (!peersRef.current[socketId]) {
+                createPeer(socketId, initiator, localStream);
+              }
             }
           }
         );
 
-        // WebRTC : signal reçu
+        // SIGNAL WEBRTC
         socket.current.on(
           "webrtc-signal",
           ({ signal, from }: { signal: Peer.SignalData; from: string }) => {
-            const peer = peersRef.current[from];
-            if (peer) peer.signal(signal);
+            let peer = peersRef.current[from];
+
+            if (!peer && localStream) {
+              peer = createPeer(from, false, localStream);
+            }
+
+            peer?.signal(signal);
           }
         );
       } catch (err) {
@@ -87,29 +117,40 @@ export default function ConsultationModal({
     init();
 
     return () => {
-      Object.values(peersRef.current).forEach(p => p.destroy());
+      Object.values(peersRef.current).forEach((peer) => peer.destroy());
+
       if (socket.current) socket.current.disconnect();
-      if (localStream) localStream.getTracks().forEach(track => track.stop());
+
+      if (localStream) {
+        localStream.getTracks().forEach((track) => track.stop());
+      }
     };
   }, [rdvId, role, user?._id]);
 
-  // --- SCROLL CHAT AUTO ---
+  // ===============================
+  // SCROLL CHAT AUTO
+  // ===============================
+
   useEffect(() => {
-    if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
+    if (chatRef.current) {
+      chatRef.current.scrollTop = chatRef.current.scrollHeight;
+    }
   }, [messages]);
 
-  // --- ENVOYER MESSAGE ---
-  const sendMessage = () => {
-    if (!text.trim() || status === "termine") return;
-    const msg: Message = { senderId: user?._id || "", senderRole: role, content: text, createdAt: new Date() };
-    setMessages(prev => [...prev, msg]);
-    socket.current?.emit("send-message", { roomId: `consult-${rdvId}`, message: msg });
-    setText("");
-  };
+  // ===============================
+  // CREATE PEER
+  // ===============================
 
-  // --- CREATE PEER ---
-  const createPeer = (remoteSocketId: string, initiator: boolean, localStream: MediaStream) => {
-    const peer = new Peer({ initiator, trickle: false, stream: localStream });
+  const createPeer = (
+    remoteSocketId: string,
+    initiator: boolean,
+    localStream: MediaStream
+  ) => {
+    const peer = new Peer({
+      initiator,
+      trickle: false,
+      stream: localStream,
+    });
 
     peer.on("signal", (signalData) => {
       socket.current?.emit("webrtc-signal", {
@@ -121,29 +162,69 @@ export default function ConsultationModal({
     });
 
     peer.on("stream", (remoteStream) => {
-      // Ajouter une vidéo pour chaque peer
+      if (!remoteVideosRef.current) return;
+
       const video = document.createElement("video");
+
       video.srcObject = remoteStream;
       video.autoplay = true;
       video.playsInline = true;
-      video.className = "w-1/2 h-48 bg-black";
-      remoteVideosRef.current?.appendChild(video);
+      video.className = "w-1/2 h-48 bg-black rounded";
+
+      remoteVideosRef.current.innerHTML = "";
+      remoteVideosRef.current.appendChild(video);
     });
 
-    peer.on("error", (err) => console.error("Peer error:", err));
+    peer.on("error", (err) => {
+      console.error("Peer error:", err);
+    });
 
     peersRef.current[remoteSocketId] = peer;
+
+    return peer;
   };
 
-  // --- TERMINER CONSULTATION ---
+  // ===============================
+  // SEND MESSAGE
+  // ===============================
+
+  const sendMessage = () => {
+    if (!text.trim() || status === "termine") return;
+
+    const msg: Message = {
+      senderId: user?._id || "",
+      senderRole: role,
+      content: text,
+      createdAt: new Date(),
+    };
+
+    setMessages((prev) => [...prev, msg]);
+
+    socket.current?.emit("send-message", {
+      roomId: `consult-${rdvId}`,
+      message: msg,
+    });
+
+    setText("");
+  };
+
+  // ===============================
+  // TERMINER CONSULTATION
+  // ===============================
+
   const terminerConsultation = async () => {
     if (!user) return;
+
     if (!window.confirm("Terminer cette consultation ?")) return;
 
     try {
-      await apiTerminerConsultation(rdvId, { compteRendu, ordonnance }, user.token);
+      await apiTerminerConsultation(
+        rdvId,
+        { compteRendu, ordonnance },
+        user.token
+      );
+
       setStatus("termine");
-      alert("Consultation terminée !");
 
       if (removeRDVFromList) removeRDVFromList(rdvId);
       if (removeRDVFromPatientList) removeRDVFromPatientList(rdvId);
@@ -159,69 +240,85 @@ export default function ConsultationModal({
     <div className="fixed inset-0 bg-black/40 flex justify-center items-center z-50">
       <div className="bg-white w-[90%] h-[85%] rounded-xl flex shadow-lg overflow-hidden">
 
-        {/* Vidéo + Chat */}
+        {/* VIDEO + CHAT */}
         <div className="w-1/2 border-r flex flex-col">
+
           <div className="flex gap-2 p-2">
-            <video ref={userVideo} muted autoPlay playsInline className="w-1/2 h-48 bg-black" />
-            <div ref={remoteVideosRef} className="flex gap-2 flex-wrap"></div>
+            <video
+              ref={userVideo}
+              muted
+              autoPlay
+              playsInline
+              className="w-1/2 h-48 bg-black rounded"
+            />
+            <div
+              ref={remoteVideosRef}
+              className="flex gap-2 flex-wrap w-1/2"
+            ></div>
           </div>
 
-{/* --- CHAT REFAIT STYLE WHATSAPP --- */}
-<div className="flex-1 flex flex-col border-t p-2 bg-gray-50">
-  {/* Messages */}
-  <div
-    className="flex-1 overflow-y-auto p-2 space-y-2 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100"
-    ref={chatRef}
-  >
-    {messages.map((m, i) => {
-      const isMe = m.senderId === user?._id;
-      return (
-        <div key={m.createdAt.toString() + i} className={`flex ${isMe ? "justify-end" : "justify-start"}`}>
-          <div className={`max-w-[75%] px-4 py-2 rounded-xl break-words
-            ${isMe ? "bg-green-600 text-white rounded-br-none" : "bg-white text-gray-800 rounded-bl-none shadow"}`}>
-            <div className="text-sm">{m.content}</div>
-            <div className="text-[10px] text-gray-400 mt-1 text-right">
-              {new Date(m.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+          {/* CHAT */}
+          <div className="flex-1 flex flex-col border-t p-2 bg-gray-50">
+
+            <div
+              className="flex-1 overflow-y-auto p-2 space-y-2"
+              ref={chatRef}
+            >
+              {messages.map((m, i) => {
+                const isMe = m.senderId === user?._id;
+
+                return (
+                  <div
+                    key={m.createdAt.toString() + i}
+                    className={`flex ${
+                      isMe ? "justify-end" : "justify-start"
+                    }`}
+                  >
+                    <div
+                      className={`max-w-[75%] px-4 py-2 rounded-xl break-words
+                        ${
+                          isMe
+                            ? "bg-green-600 text-white"
+                            : "bg-white text-gray-800 shadow"
+                        }`}
+                    >
+                      <div className="text-sm">{m.content}</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="flex mt-2">
+              <input
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                className="flex-1 border p-2 rounded-l"
+                placeholder="Écrire un message..."
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") sendMessage();
+                }}
+              />
+
+              <button
+                onClick={sendMessage}
+                className="bg-green-600 text-white px-4 rounded-r"
+              >
+                Envoyer
+              </button>
             </div>
           </div>
         </div>
-      );
-    })}
-  </div>
 
-  {/* Input */}
-  <div className="flex items-center mt-2 p-2 bg-white rounded-xl shadow">
-    <input
-      type="text"
-      value={text}
-      onChange={(e) => setText(e.target.value)}
-      placeholder="Écrire un message..."
-      disabled={status === "termine"}
-      className="flex-1 border-none outline-none px-4 py-2 rounded-lg bg-gray-100 focus:bg-gray-200 transition"
-      onKeyDown={(e) => { if (e.key === "Enter") sendMessage(); }}
-    />
-    <button
-      onClick={sendMessage}
-      className="ml-2 bg-green-600 hover:bg-green-700 text-white p-2 rounded-full flex items-center justify-center"
-      disabled={status === "termine"}
-    >
-      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 rotate-45" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10l9-4 2 9 9-4-18 9z" />
-      </svg>
-    </button>
-  </div>
-</div>
-        </div>
-
-        {/* Compte rendu + Ordonnance */}
+        {/* COMPTE RENDU */}
         <div className="w-1/2 flex flex-col">
+
           <div className="flex-1 border-b p-4 flex flex-col">
             <h2 className="font-bold mb-2">Compte rendu</h2>
             <textarea
               value={compteRendu}
               onChange={(e) => setCompteRendu(e.target.value)}
-              className="flex-1 border rounded p-2 resize-none"
-              placeholder="Rédiger le compte rendu médical..."
+              className="flex-1 border rounded p-2"
               disabled={role !== "medecin" || status === "termine"}
             />
           </div>
@@ -231,8 +328,7 @@ export default function ConsultationModal({
             <textarea
               value={ordonnance}
               onChange={(e) => setOrdonnance(e.target.value)}
-              className="flex-1 border rounded p-2 resize-none"
-              placeholder="Rédiger l'ordonnance..."
+              className="flex-1 border rounded p-2"
               disabled={role !== "medecin" || status === "termine"}
             />
           </div>
@@ -240,16 +336,20 @@ export default function ConsultationModal({
           {role === "medecin" && (
             <button
               onClick={terminerConsultation}
-              className="m-4 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
-              disabled={status === "termine"}
+              className="m-4 bg-green-600 text-white px-4 py-2 rounded"
             >
-              {status === "termine" ? "Consultation terminée" : "Terminer la consultation"}
+              Terminer la consultation
             </button>
           )}
         </div>
       </div>
 
-      <button onClick={onClose} className="absolute top-5 right-5 text-white text-2xl font-bold">✕</button>
+      <button
+        onClick={onClose}
+        className="absolute top-5 right-5 text-white text-2xl font-bold"
+      >
+        ✕
+      </button>
     </div>
   );
 }
