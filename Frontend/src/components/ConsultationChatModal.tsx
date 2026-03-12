@@ -9,7 +9,7 @@ interface Props {
   rdvId: string;
   role: "patient" | "medecin";
   onClose: () => void;
-  removeRDVFromList?: (rdvId: string) => void; 
+  removeRDVFromList?: (rdvId: string) => void;
   removeRDVFromPatientList?: (rdvId: string) => void;
 }
 
@@ -20,7 +20,13 @@ interface Message {
   createdAt: Date;
 }
 
-export default function ConsultationModal({ rdvId, role, onClose }: Props) {
+export default function ConsultationModal({
+  rdvId,
+  role,
+  onClose,
+  removeRDVFromList,
+  removeRDVFromPatientList,
+}: Props) {
   const { user } = useAuth();
 
   const [stream, setStream] = useState<MediaStream | null>(null);
@@ -31,10 +37,10 @@ export default function ConsultationModal({ rdvId, role, onClose }: Props) {
   const [status, setStatus] = useState<"en_cours" | "termine">("en_cours");
 
   const userVideo = useRef<HTMLVideoElement>(null);
-  const partnerVideo = useRef<HTMLVideoElement>(null);
+  const remoteVideosRef = useRef<HTMLDivElement>(null);
   const chatRef = useRef<HTMLDivElement>(null);
-  const connectionRef = useRef<Peer.Instance | null>(null);
   const socket = useRef<Socket | null>(null);
+  const peersRef = useRef<{ [socketId: string]: Peer.Instance }>({});
 
   // --- INIT CAMERA + SOCKET ---
   useEffect(() => {
@@ -55,18 +61,24 @@ export default function ConsultationModal({ rdvId, role, onClose }: Props) {
         socket.current.on("receive-message", (msg: Message) => setMessages(prev => [...prev, msg]));
 
         // WebRTC : un utilisateur s'est connecté
-        socket.current.on("user-connected", ({ socketId, role: remoteRole }: { socketId: string; role: "medecin" | "patient" }) => {
-          if (!localStream) return;
-          if ((role === "medecin" && remoteRole === "patient") || (role === "patient" && remoteRole === "medecin")) {
-            startPeer(socketId, role === "medecin", localStream);
+        socket.current.on(
+          "user-connected",
+          ({ socketId, role: remoteRole }: { socketId: string; role: "medecin" | "patient" }) => {
+            if (!localStream) return;
+            if ((role === "medecin" && remoteRole === "patient") || (role === "patient" && remoteRole === "medecin")) {
+              createPeer(socketId, role === "medecin", localStream);
+            }
           }
-        });
+        );
 
         // WebRTC : signal reçu
-        socket.current.on("webrtc-signal", ({ signal, from }: { signal: Peer.SignalData; from: string }) => {
-          if (connectionRef.current) connectionRef.current.signal(signal);
-        });
-
+        socket.current.on(
+          "webrtc-signal",
+          ({ signal, from }: { signal: Peer.SignalData; from: string }) => {
+            const peer = peersRef.current[from];
+            if (peer) peer.signal(signal);
+          }
+        );
       } catch (err) {
         console.error("Erreur caméra/micro :", err);
       }
@@ -75,7 +87,7 @@ export default function ConsultationModal({ rdvId, role, onClose }: Props) {
     init();
 
     return () => {
-      if (connectionRef.current) connectionRef.current.destroy();
+      Object.values(peersRef.current).forEach(p => p.destroy());
       if (socket.current) socket.current.disconnect();
       if (localStream) localStream.getTracks().forEach(track => track.stop());
     };
@@ -95,21 +107,32 @@ export default function ConsultationModal({ rdvId, role, onClose }: Props) {
     setText("");
   };
 
-  // --- DÉMARRER PEER ---
-  const startPeer = (remoteSocketId: string, initiator: boolean, localStream: MediaStream) => {
+  // --- CREATE PEER ---
+  const createPeer = (remoteSocketId: string, initiator: boolean, localStream: MediaStream) => {
     const peer = new Peer({ initiator, trickle: false, stream: localStream });
 
     peer.on("signal", (signalData) => {
-      socket.current?.emit("webrtc-signal", { roomId: `consult-${rdvId}`, signal: signalData, from: socket.current?.id, to: remoteSocketId });
+      socket.current?.emit("webrtc-signal", {
+        roomId: `consult-${rdvId}`,
+        signal: signalData,
+        from: socket.current?.id,
+        to: remoteSocketId,
+      });
     });
 
     peer.on("stream", (remoteStream) => {
-      if (partnerVideo.current) partnerVideo.current.srcObject = remoteStream;
+      // Ajouter une vidéo pour chaque peer
+      const video = document.createElement("video");
+      video.srcObject = remoteStream;
+      video.autoplay = true;
+      video.playsInline = true;
+      video.className = "w-1/2 h-48 bg-black";
+      remoteVideosRef.current?.appendChild(video);
     });
 
     peer.on("error", (err) => console.error("Peer error:", err));
 
-    connectionRef.current = peer;
+    peersRef.current[remoteSocketId] = peer;
   };
 
   // --- TERMINER CONSULTATION ---
@@ -121,6 +144,10 @@ export default function ConsultationModal({ rdvId, role, onClose }: Props) {
       await apiTerminerConsultation(rdvId, { compteRendu, ordonnance }, user.token);
       setStatus("termine");
       alert("Consultation terminée !");
+
+      if (removeRDVFromList) removeRDVFromList(rdvId);
+      if (removeRDVFromPatientList) removeRDVFromPatientList(rdvId);
+
       onClose();
     } catch (err) {
       console.error(err);
@@ -136,7 +163,7 @@ export default function ConsultationModal({ rdvId, role, onClose }: Props) {
         <div className="w-1/2 border-r flex flex-col">
           <div className="flex gap-2 p-2">
             <video ref={userVideo} muted autoPlay playsInline className="w-1/2 h-48 bg-black" />
-            <video ref={partnerVideo} autoPlay playsInline className="w-1/2 h-48 bg-black" />
+            <div ref={remoteVideosRef} className="flex gap-2 flex-wrap"></div>
           </div>
 
           <div className="flex-1 flex flex-col border-t p-2">
