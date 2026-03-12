@@ -159,6 +159,13 @@ export default function ConsultationModal({
     <div className="fixed inset-0 bg-black/40 flex justify-center items-center z-50">
       <div className="bg-white w-[90%] h-[85%] rounded-xl flex shadow-lg overflow-hidden">
 
+        {/* Vidéo + Chat */}
+        <div className="w-1/2 border-r flex flex-col">
+          <div className="flex gap-2 p-2">
+            <video ref={userVideo} muted autoPlay playsInline className="w-1/2 h-48 bg-black" />
+            <div ref={remoteVideosRef} className="flex gap-2 flex-wrap"></div>
+          </div>
+
 {/* --- CHAT REFAIT STYLE WHATSAPP --- */}
 <div className="flex-1 flex flex-col border-t p-2 bg-gray-50">
   {/* Messages */}
@@ -204,6 +211,7 @@ export default function ConsultationModal({
     </button>
   </div>
 </div>
+        </div>
 
         {/* Compte rendu + Ordonnance */}
         <div className="w-1/2 flex flex-col">
