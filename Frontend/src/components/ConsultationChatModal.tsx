@@ -161,7 +161,7 @@ function ConsultationContent({
                   onClick={joinCall}
                   disabled={!joinEnabled}
                   className={`px-6 py-2 rounded-full font-semibold transition ${
-                    joinEnabled ? "bg-blue-600 hover:bg-blue-700" : "bg-gray-600 cursor-not-allowed"
+                    joinEnabled ? "bg-green-600 hover:bg-green-700" : "bg-gray-600 cursor-not-allowed"
                   }`}
                 >
                   {role === "patient" && !joinEnabled ? "En attente du médecin..." : "Rejoindre l'appel"}
@@ -221,7 +221,7 @@ function ConsultationContent({
               <button
                 onClick={sendMessage}
                 disabled={status === "termine"}
-                className="bg-blue-600 text-white px-4 py-2 rounded-full hover:bg-blue-700 disabled:opacity-50"
+                className="bg-green-600 text-white px-4 py-2 rounded-full hover:bg-green-700 disabled:opacity-50"
               >
                 Envoyer
               </button>

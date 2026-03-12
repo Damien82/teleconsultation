@@ -5,12 +5,14 @@ import PatientDashboard from "./pages/Dashboard/PatientDashboard";
 import MedecinDashboard from "./pages/Dashboard/MedecinDashboard";
 import AdminDashboard from "./pages/Dashboard/AdminDashboard";
 import PrivateRoute from "./components/PrivateRoute";
+import Homepage from "./pages/Homepage";
 
 function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<LoginPage />} />
+        <Route path="/" element={<Homepage />} />
+        <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
 
         <Route
