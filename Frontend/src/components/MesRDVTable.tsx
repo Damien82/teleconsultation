@@ -1,4 +1,4 @@
-import { FaSms, FaSearch, FaUserMd, FaCalendarCheck, FaTimesCircle } from "react-icons/fa";
+import { FaSms, FaSearch, FaUserMd, FaCalendarCheck, FaTimesCircle, FaVideo } from "react-icons/fa";
 
 type Props = {
   rdvs: any[];
@@ -17,7 +17,8 @@ export default function MesRDVTable({ rdvs, searchRDV, setSearchRDV, userToken, 
   const handleAnnuler = async (id: string) => {
     if (confirm("Voulez-vous vraiment annuler ce rendez-vous ?")) {
       try {
-        await fetch(`http://localhost:5000/api/patient/rdvs/${id}`, {
+        // Correction de l'URL vers ton serveur Render
+        await fetch(`https://teleconsultation-m2ii.onrender.com/api/patient/rdvs/${id}`, {
           method: "DELETE",
           headers: { Authorization: `Bearer ${userToken}` },
         });
@@ -79,26 +80,32 @@ export default function MesRDVTable({ rdvs, searchRDV, setSearchRDV, userToken, 
                     </td>
                     <td className="px-6 py-5">
                       <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-tighter ${
-                        r.statut === "validé" 
-                          ? "bg-green-100 text-green-700" 
-                          : "bg-blue-100 text-blue-700"
+                        r.statut === "en cours" ? "bg-red-100 text-red-600 animate-pulse" :
+                        r.statut === "validé" ? "bg-blue-100 text-blue-600" : "bg-slate-100 text-slate-500"
                       }`}>
                         {r.statut}
                       </span>
                     </td>
                     <td className="px-6 py-5 text-right">
                       <div className="flex justify-end gap-2">
-                        {r.statut === "validé" && (
+                        {/* --- CONDITION CORRIGÉE ICI --- */}
+                        {(r.statut === "validé" || r.statut === "en cours") && (
                           <button
-                            className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-green-700 shadow-md shadow-green-100 transition-all transform active:scale-95"
+                            className={`flex items-center gap-2 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-md transition-all transform active:scale-95 ${
+                              r.statut === "en cours" 
+                                ? "bg-red-600 hover:bg-red-700 shadow-red-100" 
+                                : "bg-green-600 hover:bg-green-700 shadow-green-100"
+                            }`}
                             onClick={() => setSelectedRDV(r)}
                           >
-                            <FaSms size={14} /> Rejoindre
+                            <FaVideo size={14} /> 
+                            {r.statut === "en cours" ? "Rejoindre l'appel" : "Accéder"}
                           </button>
                         )}
+
                         {r.statut === "payé" && (
                           <button
-                            className="flex items-center gap-2 bg-slate-100 text-red-500 px-4 py-2 rounded-xl text-xs font-bold hover:bg-red-50 transition-all transform active:scale-95"
+                            className="flex items-center gap-2 bg-slate-100 text-red-500 px-4 py-2 rounded-xl text-xs font-bold hover:bg-red-50 transition-all transform active:scale-95 border border-transparent hover:border-red-100"
                             onClick={() => handleAnnuler(r._id)}
                           >
                             <FaTimesCircle size={14} /> Annuler
