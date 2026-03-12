@@ -64,11 +64,11 @@ export default function MesRDVTableMedecin({
       <div className="overflow-hidden border border-slate-200/60 rounded-[2rem] bg-white shadow-sm">
         <table className="w-full border-collapse">
           <thead>
-            <tr className="bg-slate-50/50 border-b border-slate-100">
-              <th className="px-6 py-4 text-left text-[11px] font-bold text-slate-500 uppercase tracking-widest">Patient</th>
-              <th className="px-6 py-4 text-left text-[11px] font-bold text-slate-500 uppercase tracking-widest">Date & Heure</th>
-              <th className="px-6 py-4 text-left text-[11px] font-bold text-slate-500 uppercase tracking-widest">Statut</th>
-              <th className="px-6 py-4 text-right text-[11px] font-bold text-slate-500 uppercase tracking-widest">Actions</th>
+            <tr className="bg-green-200 border-b border-slate-100">
+              <th className="px-6 py-4 text-left text-[11px] font-bold text-black uppercase tracking-widest">Patient</th>
+              <th className="px-6 py-4 text-left text-[11px] font-bold text-black uppercase tracking-widest">Date & Heure</th>
+              <th className="px-6 py-4 text-left text-[11px] font-bold text-black uppercase tracking-widest">Statut</th>
+              <th className="px-6 py-4 text-right text-[11px] font-bold text-black uppercase tracking-widest">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-50">
