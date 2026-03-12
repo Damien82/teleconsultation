@@ -91,7 +91,7 @@ const LandingPage = () => {
           <h1 className="text-green-100 text-xl mb-2">Inscrivez-vous gratuitement et prenez votre premier rendez-vous en moins de 2 minutes.</h1>
           <div>            
                 <Link to="/register" className="bg-white text-green-600 px-10 py-4 rounded-xl font-bold text-lg hover:bg-gray-100 transition shadow-xl">
-                    Créer un compte patient maintenant
+                    Créer un compte maintenant
                 </Link>
             </div>
         </div>
