@@ -78,7 +78,7 @@ export default function MedecinDashboard() {
           rdvs={rdvs}
           searchRDV={searchRDV}
           setSearchRDV={setSearchRDV}
-          userToken={user!.token}
+        
           load={loadRDVs}
           setSelectedRDV={setSelectedRDV}
           validerRDV={validerRDV}
