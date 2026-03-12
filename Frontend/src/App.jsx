@@ -5,7 +5,7 @@ import PatientDashboard from "./pages/Dashboard/PatientDashboard";
 import MedecinDashboard from "./pages/Dashboard/MedecinDashboard";
 import AdminDashboard from "./pages/Dashboard/AdminDashboard";
 import PrivateRoute from "./components/PrivateRoute";
-import Homepage from "./pages/Homepage";
+import Homepage from "./pages/HomePage";
 
 function App() {
   return (
