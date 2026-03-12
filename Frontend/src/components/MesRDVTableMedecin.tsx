@@ -1,8 +1,7 @@
-// src/components/MesRDVTableMedecin.tsx
-import { FaVideo, FaCheck } from "react-icons/fa";
-import { apiDemarrerConsultation } from "../services/api"; // Assure-toi de l'avoir créé
+import { useState } from "react";
+import { FaVideo, FaCheck, FaSearch, FaCalendarDay, FaUserAlt } from "react-icons/fa";
+import { apiDemarrerConsultation } from "../services/api";
 
-// --- AJOUT DE L'INTERFACE PROPS ---
 interface Props {
   rdvs: any[];
   searchRDV: string;
@@ -10,7 +9,6 @@ interface Props {
   setSelectedRDV: (rdv: any) => void;
   validerRDV: (rdvId: string) => void;
   userToken: string;
-  load: () => void; // Ajouté car présent dans ton type précédent
 }
 
 export default function MesRDVTableMedecin({
@@ -21,76 +19,104 @@ export default function MesRDVTableMedecin({
   validerRDV,
   userToken,
 }: Props) {
-  
 
-const handleDemarrer = async (rdvId: string) => {
-  try {
-    const data = await apiDemarrerConsultation(rdvId, userToken);
-    if (data.rdv) {
-      setSelectedRDV(data.rdv); 
+  // La fonction magique qui manquait au nouveau design
+  const handleDemarrer = async (rdvId: string) => {
+    try {
+      console.log("🚀 Démarrage de la consultation pour le RDV:", rdvId);
+      const data = await apiDemarrerConsultation(rdvId, userToken);
+      if (data.rdv) {
+        setSelectedRDV(data.rdv); 
+      }
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Erreur lors du démarrage");
     }
-  } catch (err) {
-    if (err instanceof Error) {
-      alert(err.message);
-    } else {
-      alert("Une erreur inconnue est survenue");
-    }
-  }
-};
+  };
 
   const filteredRDV = rdvs.filter(r =>
     r.patientId.name.toLowerCase().includes(searchRDV.toLowerCase())
   );
 
   return (
-    <div>
-      {/* ... recherche ... */}
-      <table className="w-full table-auto border-collapse">
-        <thead className="bg-green-200">
-          <tr>
-            <th className="p-3 text-left">Patient</th>
-            <th className="p-3 text-left">Date</th>
-            <th className="p-3 text-left">Statut</th>
-            <th className="p-3 text-left">Action</th>
-          </tr>
-        </thead>
-        <tbody>
-          {filteredRDV.map(r => (
-            <tr key={r._id} className="border-b hover:bg-green-50 transition">
-              <td className="p-3 font-medium">{r.patientId.name}</td>
-              <td className="p-3">{new Date(r.date).toLocaleString()}</td>
-              <td className="p-3">
-                <span className={`px-2 py-1 rounded text-xs ${
-                  r.statut === "validé" ? "bg-blue-100 text-blue-700" : 
-                  r.statut === "en cours" ? "bg-red-100 text-red-700 animate-pulse" : "bg-gray-100"
-                }`}>
-                  {r.statut}
-                </span>
-              </td>
-              <td className="p-3 flex gap-2">
-                {/* Si validé ou déjà en cours, le médecin peut rejoindre */}
-                {(r.statut === "validé" || r.statut === "en cours") && (
-                  <button
-                    className="flex items-center gap-1 bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 transition shadow-sm"
-                    onClick={() => handleDemarrer(r._id)}
-                  >
-                    <FaVideo /> {r.statut === "en cours" ? "Continuer" : "Démarrer"}
-                  </button>
-                )}
-                
-                {r.statut === "payé" && (
-                  <button
-                    className="flex items-center gap-1 bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 transition"
-                    onClick={() => validerRDV(r._id)}
-                  >
-                    <FaCheck /> Valider
-                  </button>
-                )}
-              </td>
+    <div className="space-y-6">
+      {/* Header & Recherche (Style Soft Matte) */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-800">Mes Rendez-vous</h1>
+          <p className="text-sm text-slate-500 font-medium">Gérez vos consultations</p>
+        </div>
+
+        <div className="relative w-full md:w-72 group">
+          <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-green-600 transition-colors" />
+          <input
+            type="text"
+            placeholder="Rechercher un patient..."
+            className="w-full pl-11 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:border-green-600 transition-all text-sm"
+            value={searchRDV}
+            onChange={e => setSearchRDV(e.target.value)}
+          />
+        </div>
+      </div>
+
+      {/* Table Formatée */}
+      <div className="overflow-hidden border border-slate-200/60 rounded-[2rem] bg-white shadow-sm">
+        <table className="w-full border-collapse">
+          <thead>
+            <tr className="bg-slate-50/50 border-b border-slate-100">
+              <th className="px-6 py-4 text-left text-[11px] font-bold text-slate-500 uppercase tracking-widest">Patient</th>
+              <th className="px-6 py-4 text-left text-[11px] font-bold text-slate-500 uppercase tracking-widest">Date & Heure</th>
+              <th className="px-6 py-4 text-left text-[11px] font-bold text-slate-500 uppercase tracking-widest">Statut</th>
+              <th className="px-6 py-4 text-right text-[11px] font-bold text-slate-500 uppercase tracking-widest">Actions</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="divide-y divide-slate-50">
+            {filteredRDV.map(r => (
+              <tr key={r._id} className="group hover:bg-slate-50/30 transition-colors">
+                <td className="px-6 py-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-green-50 text-green-600 flex items-center justify-center text-xs font-bold">
+                      {r.patientId.name.charAt(0)}
+                    </div>
+                    <span className="font-bold text-slate-700 text-sm">{r.patientId.name}</span>
+                  </div>
+                </td>
+                <td className="px-6 py-4 text-sm text-slate-600">
+                  {new Date(r.date).toLocaleString('fr-FR')}
+                </td>
+                <td className="px-6 py-4">
+                  <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-tighter ${
+                    r.statut === "en cours" ? "bg-red-100 text-red-600 animate-pulse" :
+                    r.statut === "validé" ? "bg-blue-100 text-blue-600" : "bg-slate-100 text-slate-500"
+                  }`}>
+                    {r.statut}
+                  </span>
+                </td>
+                <td className="px-6 py-4 text-right">
+                  <div className="flex justify-end gap-2">
+                    {(r.statut === "validé" || r.statut === "en cours") && (
+                      <button
+                        className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-green-700 shadow-lg shadow-green-100 transition-all active:scale-95"
+                        onClick={() => handleDemarrer(r._id)}
+                      >
+                        <FaVideo /> {r.statut === "en cours" ? "Continuer" : "Démarrer"}
+                      </button>
+                    )}
+                    
+                    {r.statut === "payé" && (
+                      <button
+                        className="flex items-center gap-1 bg-blue-600 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-blue-700 transition-all"
+                        onClick={() => validerRDV(r._id)}
+                      >
+                        <FaCheck /> Valider
+                      </button>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
