@@ -95,14 +95,22 @@ export default function MesRDVTableMedecin({
                           <FaSms /> Rejoindre
                         </button>
                       )}
-                      {r.statut === "payé" && (
-                        <button
-                          className="bg-blue-600 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-blue-700 shadow-md shadow-blue-100 transition-all transform hover:scale-105"
-                          onClick={() => validerRDV(r._id)}
-                        >
-                          Valider
-                        </button>
-                      )}
+{r.statut === "validé" && (
+  <button
+    className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-green-700 shadow-md shadow-green-100 transition-all transform hover:scale-105 active:scale-95"
+    onClick={() => {
+      // DEBUG: Vérifie si l'ID du RDV existe bien avant de lancer la sélection
+      if (r._id) {
+        console.log("Tentative de connexion au salon Agora:", r._id);
+        setSelectedRDV(r);
+      } else {
+        alert("Erreur: ID de consultation manquant pour générer le token.");
+      }
+    }}
+  >
+    <FaSms /> Rejoindre
+  </button>
+)}
                     </div>
                   </td>
                 </tr>
