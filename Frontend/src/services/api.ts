@@ -263,6 +263,29 @@ export const apiGetHistoriqueConsultationsPatient = async (token: string) => {
   return res.json();
 };
 
+// Ajoute ceci dans src/services/api.ts
 
+export const apiGetAgoraToken = async (rdvId: string, userId: string) => {
+  try {
+    const response = await fetch(`https://teleconsultation-m2ii.onrender.com/api/agora/token/${rdvId}/${userId}`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        // Ajoute ton header d'autorisation si nécessaire
+        // "Authorization": `Bearer ${token}` 
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error("Erreur lors de la récupération du token Agora");
+    }
+
+    return await response.json(); 
+    // Doit retourner : { appId: string, token: string, channel: string }
+  } catch (error) {
+    console.error("apiGetAgoraToken error:", error);
+    throw error;
+  }
+};
 
 

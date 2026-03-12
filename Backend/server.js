@@ -1,9 +1,11 @@
-// server.js
 import app from "./app.js";
 import http from "http";
 import { Server } from "socket.io";
 import dotenv from "dotenv";
-import RDV from "./src/models/RendezVous.js"; // modèle RDV pour sauvegarder roomId
+import RDV from "./src/models/RendezVous.js";
+// Utilisation de require pour agora car le package n'est pas toujours compatible ES Modules pur
+import pkg from 'agora-access-token';
+const { RtcTokenBuilder, RtcRole } = pkg;
 
 dotenv.config();
 
@@ -17,19 +19,58 @@ const io = new Server(server, {
   },
 });
 
-// Stockage utilisateurs par room
-const usersInRoom = {}; // { roomId: { socketId: role } }
+// --- ROUTE API POUR AGORA TOKEN ---
+// On l'ajoute directement sur 'app' avant les sockets
+app.get("/api/agora/token/:rdvId/:userId", async (req, res) => {
+  const rdv = await RDV.findById(req.params.rdvId);
+  
+  // SÉCURITÉ : Le patient ne peut avoir un token QUE si le médecin a démarré
+  if (!rdv || rdv.statut !== "en cours") {
+    return res.status(403).json({ error: "La consultation n'a pas encore démarré." });
+  }
+  try {
+    const { rdvId } = req.params;
+    const APP_ID = process.env.AGORA_APP_ID;
+    const APP_CERTIFICATE = process.env.AGORA_APP_CERTIFICATE;
+
+    if (!APP_ID || !APP_CERTIFICATE) {
+      return res.status(500).json({ error: "Configuration Agora manquante sur le serveur" });
+    }
+
+    const channelName = `consult-${rdvId}`;
+    const uid = 0; // 0 permet à Agora de générer un UID numérique automatiquement
+    const role = RtcRole.PUBLISHER;
+    const expirationTimeInSeconds = 3600; // 1 heure
+    const privilegeExpiredTs = Math.floor(Date.now() / 1000) + expirationTimeInSeconds;
+
+    const token = RtcTokenBuilder.buildTokenWithUid(
+      APP_ID,
+      APP_CERTIFICATE,
+      channelName,
+      uid,
+      role,
+      privilegeExpiredTs
+    );
+
+    res.json({ appId: APP_ID, token, channel: channelName });
+  } catch (error) {
+    console.error("Erreur génération token:", error);
+    res.status(500).send("Erreur serveur");
+  }
+});
+
+// --- LOGIQUE SOCKET.IO ---
+const usersInRoom = {};
 
 io.on("connection", (socket) => {
   console.log("Socket connecté :", socket.id);
 
-  // Rejoindre une consultation / room
   socket.on("join-consultation", async ({ rdvId, userId, role }) => {
     try {
       let roomId = `consult-${rdvId}`;
       const rdv = await RDV.findById(rdvId);
+      if (!rdv) return;
 
-      // Si le médecin valide et roomId inexistant → créer
       if (!rdv.roomId && role === "medecin") {
         rdv.roomId = roomId;
         await rdv.save();
@@ -38,40 +79,18 @@ io.on("connection", (socket) => {
       }
 
       socket.join(roomId);
-
       if (!usersInRoom[roomId]) usersInRoom[roomId] = {};
       usersInRoom[roomId][socket.id] = role;
 
-      console.log(`Utilisateur ${socket.id} a rejoint la room ${roomId} (${role})`);
-
-      // Notifier tous les autres dans la room
-      socket.to(roomId).emit("user-connected", { socketId: socket.id, role });
-
-      // Si médecin et patient déjà là → notifier médecin
+      // Notifier l'autre utilisateur pour débloquer le bouton "Rejoindre" côté patient
       if (role === "medecin") {
-        for (const sId in usersInRoom[roomId]) {
-          if (usersInRoom[roomId][sId] === "patient") {
-            socket.emit("patient-connected", { patientSocketId: sId });
-          }
-        }
+        socket.to(roomId).emit("medecin-joined");
       }
 
-      // Si patient et médecin déjà là → notifier patient
-      if (role === "patient") {
-        for (const sId in usersInRoom[roomId]) {
-          if (usersInRoom[roomId][sId] === "medecin") {
-            socket.emit("medecin-connected", { medecinSocketId: sId });
-          }
-        }
-      }
+      console.log(`User ${socket.id} (${role}) rejoint ${roomId}`);
     } catch (err) {
       console.error("Erreur join-consultation :", err);
     }
-  });
-
-  // Signaux WebRTC
-  socket.on("webrtc-signal", ({ roomId, signal, from }) => {
-    socket.to(roomId).emit("webrtc-signal", { signal, from });
   });
 
   // Chat
@@ -79,22 +98,18 @@ io.on("connection", (socket) => {
     socket.to(roomId).emit("receive-message", message);
   });
 
-  // Déconnexion
+  // Signal pour notifier le patient que le médecin a cliqué sur "Rejoindre l'appel" (bouton bleu)
+  socket.on("medecin-joined", ({ rdvId }) => {
+    socket.to(`consult-${rdvId}`).emit("medecin-joined");
+  });
+
   socket.on("disconnect", () => {
     for (const roomId in usersInRoom) {
       if (usersInRoom[roomId][socket.id]) {
         const role = usersInRoom[roomId][socket.id];
         delete usersInRoom[roomId][socket.id];
-
-        // Prévenir les autres
         socket.to(roomId).emit(`${role}-disconnected`, { socketId: socket.id });
-
-        console.log(`Utilisateur ${socket.id} (${role}) a quitté la room ${roomId}`);
-
-        // Supprimer room vide
-        if (Object.keys(usersInRoom[roomId]).length === 0) {
-          delete usersInRoom[roomId];
-        }
+        if (Object.keys(usersInRoom[roomId]).length === 0) delete usersInRoom[roomId];
       }
     }
   });
@@ -102,5 +117,5 @@ io.on("connection", (socket) => {
 
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () =>
-  console.log(`Serveur démarré sur https://teleconsultation-m2ii.onrender.com:${PORT}`)
+  console.log(`Serveur démarré sur le port ${PORT}`)
 );
