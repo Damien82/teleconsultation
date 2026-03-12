@@ -9,6 +9,7 @@ interface Props {
   setSearchRDV: (val: string) => void;
   setSelectedRDV: (rdv: any) => void;
   validerRDV: (rdvId: string) => void;
+  userToken: string;
   load: () => void; // Ajouté car présent dans ton type précédent
 }
 
@@ -18,22 +19,22 @@ export default function MesRDVTableMedecin({
   setSearchRDV,
   setSelectedRDV,
   validerRDV,
+  userToken,
 }: Props) {
   
-// Dans MesRDVTableMedecin.tsx
+
 const handleDemarrer = async (rdvId: string) => {
   try {
-    // Supprime "userToken" ici puisque la fonction le récupère déjà dans le localStorage
-    const data = await apiDemarrerConsultation(rdvId); 
-    
+    const data = await apiDemarrerConsultation(rdvId, userToken);
     if (data.rdv) {
       setSelectedRDV(data.rdv); 
-    } else {
-      alert("Erreur: " + (data.message || "Impossible de démarrer"));
     }
   } catch (err) {
-    console.error(err);
-    alert("Erreur réseau lors du démarrage");
+    if (err instanceof Error) {
+      alert(err.message);
+    } else {
+      alert("Une erreur inconnue est survenue");
+    }
   }
 };
 

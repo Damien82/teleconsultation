@@ -209,11 +209,20 @@ export const apiGetStatsMedecin = async (token: string) => {
 };
 
 
-export const apiDemarrerConsultation = async (rdvId: string) => {
+
+export const apiDemarrerConsultation = async (rdvId: string, token: string) => {
   const res = await fetch(`https://teleconsultation-m2ii.onrender.com/api/medecin/rdv/${rdvId}/start`, {
     method: "PUT",
-    headers: { "Authorization": "Bearer " + localStorage.getItem("token") },
+    headers: { 
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}` // On utilise le token passé en argument
+    },
   });
+  
+  if (res.status === 401) {
+    throw new Error("Votre session a expiré, veuillez vous reconnecter.");
+  }
+
   return res.json();
 };
 
