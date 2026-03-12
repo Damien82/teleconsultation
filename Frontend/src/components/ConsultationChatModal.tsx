@@ -184,7 +184,7 @@ export default function ConsultationModal({
               />
               <button
                 onClick={sendMessage}
-                className="ml-2 bg-green-600 text-white px-4 rounded hover:bg-blue-700"
+                className="ml-2 bg-green-600 text-white px-4 rounded hover:bg-green-700"
                 disabled={status === "termine"}
               >
                 Envoyer
